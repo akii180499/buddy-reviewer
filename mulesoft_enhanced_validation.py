@@ -1045,67 +1045,42 @@ class ReviewCommentFormatter:
     """Formats review comments for GitHub."""
 
     @staticmethod
-    def generate_circular_gauge_svg(risk_level: str, score: float) -> str:
-        """Generate SVG circular gauge for risk level."""
-        # Color mapping based on risk level
-        color_map = {
-            'CRITICAL': '#DC2626',
-            'HIGH': '#EA580C',
-            'MEDIUM': '#F59E0B',
-            'LOW': '#84CC16',
-            'MINIMAL': '#10B981'
+    def generate_score_table(risk_level: str, score: float, issue_counts: Dict[str, int]) -> str:
+        """Generate tabular structure for quality metrics."""
+        # Color/emoji mapping based on risk level
+        risk_emoji_map = {
+            'CRITICAL': '🔴',
+            'HIGH': '🟠',
+            'MEDIUM': '🟡',
+            'LOW': '🟢',
+            'MINIMAL': '✅'
         }
         
-        color = color_map.get(risk_level, '#6B7280')
+        risk_emoji = risk_emoji_map.get(risk_level, '⚪')
         
-        # Calculate circle parameters
-        radius = 80
-        circumference = 2 * 3.14159 * radius
-        stroke_dasharray = f"{(score / 100) * circumference} {circumference}"
+        # Generate progress bar
+        filled = int(score / 5)  # 20 blocks total (100/5)
+        empty = 20 - filled
+        progress_bar = '█' * filled + '░' * empty
         
-        # Rotation to start from top
-        rotation = -90
+        # Calculate total issues
+        total_issues = sum(issue_counts.values())
         
-        svg = f'''
-<svg width="220" height="220" viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background circle -->
-  <circle cx="110" cy="110" r="{radius}" 
-          fill="none" 
-          stroke="#E5E7EB" 
-          stroke-width="20"/>
-  
-  <!-- Progress circle -->
-  <circle cx="110" cy="110" r="{radius}" 
-          fill="none" 
-          stroke="{color}" 
-          stroke-width="20"
-          stroke-dasharray="{stroke_dasharray}"
-          stroke-linecap="round"
-          transform="rotate({rotation} 110 110)"
-          style="transition: stroke-dasharray 0.5s ease;"/>
-  
-  <!-- Center text - Score -->
-  <text x="110" y="100" 
-        text-anchor="middle" 
-        font-size="36" 
-        font-weight="bold" 
-        fill="{color}">{score}</text>
-  
-  <!-- Center text - Out of 100 -->
-  <text x="110" y="125" 
-        text-anchor="middle" 
-        font-size="16" 
-        fill="#6B7280">/100</text>
-  
-  <!-- Risk level text -->
-  <text x="110" y="150" 
-        text-anchor="middle" 
-        font-size="14" 
-        font-weight="600" 
-        fill="{color}">{risk_level}</text>
-</svg>
+        table = f'''
+## 📊 Code Quality Metrics
+
+| Metric | Value | Details |
+|--------|-------|---------|
+| **Quality Score** | **{score}/100** | {progress_bar} |
+| **Risk Level** | **{risk_emoji} {risk_level}** | Overall code quality assessment |
+| **🔴 Critical Issues** | {issue_counts['critical']} | Security vulnerabilities, deployment blockers |
+| **🟠 High Issues** | {issue_counts['high']} | Best practice violations, performance issues |
+| **🟡 Medium Issues** | {issue_counts['medium']} | Code quality issues, maintainability concerns |
+| **🟢 Low Issues** | {issue_counts['low']} | Minor improvements, style issues |
+| **ℹ️ Info Issues** | {issue_counts['info']} | Informational notices, suggestions |
+| **📋 Total Issues** | **{total_issues}** | All issues found in this review |
 '''
-        return svg
+        return table.strip()
 
     @staticmethod
     def format_comment(all_issues: List[Dict], score: float, 
@@ -1125,17 +1100,8 @@ class ReviewCommentFormatter:
         Returns:
             Formatted comment string.
         """
-        gauge_svg = ReviewCommentFormatter.generate_circular_gauge_svg(risk_level, score)
-        total_issues = sum(issue_counts.values())
-
-        issue_breakdown = f"""
-**Issue Breakdown:**
-- 🔴 Critical: {issue_counts['critical']}
-- 🟠 High: {issue_counts['high']}
-- 🟡 Medium: {issue_counts['medium']}
-- 🟢 Low: {issue_counts['low']}
-- ℹ️ Info: {issue_counts['info']}
-"""
+        # Use new tabular format instead of gauge
+        score_table = ReviewCommentFormatter.generate_score_table(risk_level, score, issue_counts)
 
         feedback_details = ""
         issue_number = 1
@@ -1192,19 +1158,9 @@ class ReviewCommentFormatter:
         comment_body = f"""
 # 🤖 AI-Assisted Mulesoft Code Review
 
-<div align="center">
-
-{gauge_svg}
-
-## Summary
-
-**Total Issues Found:** {total_issues}
-
-{issue_breakdown}
+{score_table}
 
 ### {policy_message}
-
-</div>
 
 ---
 
