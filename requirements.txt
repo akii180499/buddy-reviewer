@@ -1,29 +1,30 @@
-# Mulesoft Code Review Plugin - Python Dependencies
-# ==================================================
+# Mulesoft Code Review Plugin - Latest Compatible Versions
+# ==========================================================
+# Use this if you encounter compatibility issues with requirements.txt
 
 # GitHub API Integration
-PyGithub==2.1.1
+PyGithub>=2.1.1,<3.0.0
 
 # HTTP Requests for fetching PR files
-requests==2.31.0
+requests>=2.31.0,<3.0.0
 
 # OpenAI API for AI-assisted analysis
-openai==1.12.0
+# Using latest version with compatible httpx
+openai>=1.30.0,<2.0.0
 
 # Environment variable management
-python-dotenv==1.0.1
+python-dotenv>=1.0.0,<2.0.0
 
-# Optional but recommended for better performance
-certifi==2024.2.2
-charset-normalizer==3.3.2
-urllib3==2.2.0
-idna==3.6
+# These are automatically installed by openai but pinned for stability
+httpx>=0.27.0,<1.0.0
+httpcore>=1.0.0,<2.0.0
+anyio>=3.5.0,<5.0.0
+sniffio>=1.1.0,<2.0.0
+h11>=0.14.0,<1.0.0
 
-# For type checking and data validation (already used in code)
-typing-extensions==4.9.0
+# Type hints support
+typing-extensions>=4.7.0
+pydantic>=2.0.0,<3.0.0
 
-# JSON handling (part of standard library but included for compatibility)
-# No separate package needed
-
-# XML parsing (part of standard library)
-# No separate package needed
+# Additional useful packages
+certifi>=2024.2.0
