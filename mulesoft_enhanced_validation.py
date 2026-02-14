@@ -161,6 +161,7 @@ class XMLCodeChecker(BaseCodeChecker):
             issues.extend(self._check_http_listeners(root))
             issues.extend(self._check_loggers(root))
             issues.extend(self._check_database_queries(root))
+            issues.extend(self._check_database_config(root))
             issues.extend(self._check_global_elements(root, file_name))
             issues.extend(self._check_interface_listeners(root, file_name))
 
@@ -468,6 +469,82 @@ target.url={url}
 </db:select>
 ```'''
                 ))
+
+        return issues
+
+    def _check_database_config(self, root: ET.Element) -> List[CodeIssue]:
+        """Check database configuration for hardcoded values."""
+        issues = []
+        db_configs = root.findall('.//{http://www.mulesoft.org/schema/mule/db}config')
+
+        for db_config in db_configs:
+            # Check generic-connection for hardcoded values
+            generic_conn = db_config.find('.//{http://www.mulesoft.org/schema/mule/db}generic-connection')
+            
+            if generic_conn is not None:
+                url = generic_conn.get('url', '')
+                user = generic_conn.get('user', '')
+                password = generic_conn.get('password', '')
+                
+                # Check if URL is hardcoded (not using property placeholder)
+                if url and '${' not in url and ('jdbc:' in url or 'mysql://' in url or 'postgresql://' in url or 'oracle:' in url):
+                    issues.append(CodeIssue(
+                        severity='High',
+                        title='Hardcoded database URL in configuration',
+                        code=f'url="{url}"',
+                        reasons=[
+                            'Database URL is hardcoded instead of using property placeholders',
+                            'Violates: "Sensitive global config values must come from properties files (Critical)"',
+                            'Makes it impossible to change database connection per environment'
+                        ],
+                        fix=f'''Move database URL to properties file:
+```xml
+<db:generic-connection url="${{db.url}}" ... />
+```
+In properties file:
+```
+db.url={url}
+```'''
+                    ))
+                
+                # Check if user is hardcoded
+                if user and '${' not in user and user != '':
+                    issues.append(CodeIssue(
+                        severity='High',
+                        title='Hardcoded database user in configuration',
+                        code=f'user="{user}"',
+                        reasons=[
+                            'Database username is hardcoded instead of using property placeholders',
+                            'Violates: "Sensitive global config values must come from properties files (Critical)"',
+                            'Security risk and makes environment-specific configuration difficult'
+                        ],
+                        fix=f'''Move database user to properties file:
+```xml
+<db:generic-connection user="${{db.user}}" ... />
+```
+In properties file:
+```
+db.user={user}
+```'''
+                    ))
+                
+                # Check if password is hardcoded
+                if password and '${' not in password and password != '':
+                    issues.append(CodeIssue(
+                        severity='Critical',
+                        title='Hardcoded database password in configuration',
+                        code='password="****"',
+                        reasons=[
+                            'Database password is hardcoded - SEVERE SECURITY VIOLATION',
+                            'Violates: "Sensitive global config values must come from properties files (Critical)"',
+                            'Exposes credentials in source code, major security risk'
+                        ],
+                        fix='''Move database password to secure properties:
+```xml
+<db:generic-connection password="${secure::db.password}" ... />
+```
+Use Mule Secure Configuration Properties for sensitive data.'''
+                    ))
 
         return issues
 
@@ -910,6 +987,19 @@ Focus on:
 - Missing or incorrect configurations
 - Violations of Mulesoft best practices
 
+CRITICAL RULES FOR HARDCODED VALUES:
+1. Property placeholders like ${{property.name}} are CORRECT and should NOT be flagged as hardcoded
+2. Examples of CORRECT usage:
+   - url="${{database.url}}" ✓ CORRECT
+   - user="${{db.user}}" ✓ CORRECT
+   - host="${{api.host}}" ✓ CORRECT
+3. Examples of INCORRECT (hardcoded) usage:
+   - url="jdbc:mysql://localhost:3306/db" ✗ HARDCODED
+   - user="admin" ✗ HARDCODED
+   - password="secret123" ✗ HARDCODED
+4. DO NOT flag configurations that already use property placeholders (${{...}})
+5. ONLY flag values that are actual hardcoded strings without property placeholders
+
 For EACH issue found, format your response EXACTLY as follows:
 
 [SEVERITY: Critical|High|Medium|Low|Info] <Brief title of the issue>
@@ -938,6 +1028,7 @@ IMPORTANT:
 - Be very specific about what's wrong and why
 - Always include the fix with example code
 - If no issues are found, respond with "No issues found."
+- DO NOT flag property placeholders (${{...}}) as hardcoded values
 """
 
     @staticmethod
