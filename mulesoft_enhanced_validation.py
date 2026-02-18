@@ -298,7 +298,7 @@ target.url={url}
         """Check flow complexity based on number of components."""
         issues = []
         flows = root.findall('.//{http://www.mulesoft.org/schema/mule/core}flow')
-
+        print(flows)
         for flow in flows:
             component_count = len(list(flow))
             if component_count > 10:
@@ -332,7 +332,7 @@ target.url={url}
         """Check number of flows per file."""
         issues = []
         flows = root.findall('.//{http://www.mulesoft.org/schema/mule/core}flow')
-
+        print(flows)
         if len(flows) > 10:
             issues.append(CodeIssue(
                 severity='High',
@@ -355,7 +355,7 @@ target.url={url}
         """Check HTTP listener configurations."""
         issues = []
         http_listeners = root.findall('.//{http://www.mulesoft.org/schema/mule/http}listener')
-
+        print(type(http_listeners))
         for listener in http_listeners:
             config_ref = listener.get('config-ref', '')
             if not config_ref:
@@ -400,10 +400,9 @@ target.url={url}
         """Check logger configurations."""
         issues = []
         loggers = root.findall('.//{http://www.mulesoft.org/schema/mule/core}logger')
-
+        print(type(loggers))
         for logger in loggers:
             message = logger.get('message', '')
-
             # Check for DataWeave in loggers
             if '#[' in message and ('payload' in message or 'dw::' in message):
                 issues.append(CodeIssue(
@@ -476,15 +475,37 @@ target.url={url}
         """Check database configuration for hardcoded values."""
         issues = []
         db_configs = root.findall('.//{http://www.mulesoft.org/schema/mule/db}config')
-
+        db_inserts =  root.findall('.//{http://www.mulesoft.org/schema/mule/db}insert')
+        #check sql queries for hardcoded values
+        for insert in db_inserts:
+                sql = insert.find('.//{http://www.mulesoft.org/schema/mule/db}sql')
+                if("$" or "p('"  or 'readUrl' not in sql.text):
+                     issues.append(CodeIssue(
+                        severity='High',
+                        title='sql queries must be externalized',
+                        code=f'sql="{sql.text}"',
+                        reasons=[
+                            'Externalizing the query can help in changing it from runtime',
+                            'Externalize it to a .sql file'
+                        ],
+                        fix=f'''Move sql Query URL to properties file:
+```xml
+<db:sql="${{db.sql}}" ... />
+```
+In properties file:
+```
+db.sql={sql.text}
+```'''
+                     ))
         for db_config in db_configs:
             # Check generic-connection for hardcoded values
             generic_conn = db_config.find('.//{http://www.mulesoft.org/schema/mule/db}generic-connection')
-            
+            print(dir(generic_conn))
             if generic_conn is not None:
                 url = generic_conn.get('url', '')
                 user = generic_conn.get('user', '')
                 password = generic_conn.get('password', '')
+
                 
                 # Check if URL is hardcoded (not using property placeholder)
                 if url and '${' not in url and ('jdbc:' in url or 'mysql://' in url or 'postgresql://' in url or 'oracle:' in url):
@@ -545,6 +566,9 @@ db.user={user}
 ```
 Use Mule Secure Configuration Properties for sensitive data.'''
                     ))
+
+                #check if the sql payload is externalised
+
 
         return issues
 
@@ -839,8 +863,10 @@ Be specific and reference actual patterns found in the code.
                 max_tokens=2000,
                 temperature=0.3
             )
+            print(response.choices[0].message.content)
             return response.choices[0].message.content
         except Exception as e:
+            print(e)
             return f"Error performing architectural analysis: {str(e)}"
 
 
